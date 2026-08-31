@@ -41,7 +41,9 @@ public class OrganizerServiceImpl implements OrganizerService {
     @Override
     public OrganizerResDto getOrganizerById(Long organizerId) {
         Organizer organizer = organizerRepository.findById(organizerId).orElseThrow(() -> new ResourceNotFoundException("Organizer", organizerId));
-        return modelMapper.map(organizer, OrganizerResDto.class);
+        OrganizerResDto organizerResDto = modelMapper.map(organizer, OrganizerResDto.class);
+        organizerResDto.setMemberId(organizer.getMember().getId());
+        return organizerResDto;
     }
 }
 
