@@ -9,7 +9,6 @@ import com.eventsphere.exception.ResourceNotFoundException;
 import com.eventsphere.repository.HallRepository;
 import com.eventsphere.repository.VenueRepository;
 import com.eventsphere.service.HallService;
-import jakarta.validation.constraints.Null;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,7 +59,7 @@ public class HallServiceImpl implements HallService {
     public List<HallResDto> getHallsOfVenue(Long venueId) {
         return hallRepository.findAllByVenue(getVenueById(venueId))
                 .stream()
-                .map((hall) -> modelMapper.map(hall, HallResDto.class))
+                .map(hall -> modelMapper.map(hall, HallResDto.class))
                 .toList();
     }
 
