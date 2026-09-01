@@ -5,17 +5,14 @@ import com.eventsphere.dto.Response.ApiResponse;
 import com.eventsphere.dto.Response.OrganiserResDto;
 import com.eventsphere.entity.Member;
 import com.eventsphere.entity.Organiser;
-import com.eventsphere.entity.Role;
 import com.eventsphere.exception.ResourceNotFoundException;
 import com.eventsphere.repository.MemberRepository;
 import com.eventsphere.repository.OrganiserRepository;
 import com.eventsphere.repository.RoleRepository;
 import com.eventsphere.service.OrganiserService;
-import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
-
-import java.util.Optional;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional

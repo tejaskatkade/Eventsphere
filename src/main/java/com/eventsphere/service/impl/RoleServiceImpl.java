@@ -7,9 +7,9 @@ import com.eventsphere.entity.Role;
 import com.eventsphere.exception.ApiException;
 import com.eventsphere.repository.RoleRepository;
 import com.eventsphere.service.RoleService;
-import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 

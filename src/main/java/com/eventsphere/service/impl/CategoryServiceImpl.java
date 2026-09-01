@@ -6,8 +6,8 @@ import com.eventsphere.exception.ApiException;
 import com.eventsphere.exception.ResourceNotFoundException;
 import com.eventsphere.repository.CategoryRepository;
 import com.eventsphere.service.CategoryService;
-import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 

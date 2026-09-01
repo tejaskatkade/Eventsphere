@@ -11,9 +11,9 @@ import com.eventsphere.exception.ResourceNotFoundException;
 import com.eventsphere.repository.MemberRepository;
 import com.eventsphere.repository.RoleRepository;
 import com.eventsphere.service.MemberService;
-import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
