@@ -13,8 +13,8 @@ import java.util.Set;
 public class Event extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "organizer_id")
-    private Organizer organizer;
+    @JoinColumn(name = "organiser_id")
+    private Organiser organiser;
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<EventSchedule> eventSchedules = new HashSet<>();

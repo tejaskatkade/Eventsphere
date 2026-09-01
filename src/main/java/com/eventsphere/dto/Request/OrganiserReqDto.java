@@ -8,10 +8,10 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class OrganizerReqDto {
+public class OrganiserReqDto {
 
     @NotEmpty
-    private String organizationName;
+    private String organisationName;
 
     private String description;
 

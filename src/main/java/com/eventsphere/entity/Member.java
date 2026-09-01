@@ -29,4 +29,8 @@ public class Member extends BaseEntity {
     @ManyToMany(cascade = CascadeType.ALL)
     @JoinTable(name = "member_role", joinColumns = @JoinColumn(name = "member_id"), inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
+
+    public void addRole(Role role) {
+        roles.add(role);
+    }
 }
