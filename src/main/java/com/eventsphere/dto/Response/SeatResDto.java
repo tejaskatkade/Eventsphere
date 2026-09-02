@@ -8,7 +8,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class SeatResDto {
-    
+
     private String rowName;
 
     private Integer seatNumber;
