@@ -14,8 +14,7 @@ import java.util.Set;
 @Setter
 public class Booking extends BaseEntity {
 
-    // Don't expose database i as booking number
-
+    // Don't expose database id as booking number
     @Column(nullable = false, unique = true, length = 50)
     private String bookingReference;
 

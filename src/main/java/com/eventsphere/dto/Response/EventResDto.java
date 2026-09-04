@@ -5,16 +5,18 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
 public class EventResDto {
 
-//    private Long organiserId;
+    private Long organiserId;
 
-//    private Long eventScheduleId;
+    private List<EventScheduleResDto> eventSchedule;
 
-//    private Long categoryId;
+    private Long categoryId;
 
     private String title;
 

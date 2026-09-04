@@ -3,14 +3,10 @@ package com.eventsphere.service.impl;
 import com.eventsphere.dto.Request.EventReqDto;
 import com.eventsphere.dto.Response.ApiResponse;
 import com.eventsphere.dto.Response.EventResDto;
-import com.eventsphere.entity.Category;
-import com.eventsphere.entity.Event;
-import com.eventsphere.entity.EventStatus;
-import com.eventsphere.entity.Organiser;
+import com.eventsphere.dto.Response.EventScheduleResDto;
+import com.eventsphere.entity.*;
 import com.eventsphere.exception.ResourceNotFoundException;
-import com.eventsphere.repository.CategoryRepository;
-import com.eventsphere.repository.EventRepository;
-import com.eventsphere.repository.OrganiserRepository;
+import com.eventsphere.repository.*;
 import com.eventsphere.service.EventService;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
@@ -28,23 +24,35 @@ public class EventServiceImpl implements EventService {
 
     private final CategoryRepository categoryRepository;
 
+    private final VenueRepository venueRepository;
+
+    private final HallRepository hallRepository;
+
+    private final ScheduleRepository eventScheduleRepository;
+
     private final ModelMapper modelMapper;
 
     public EventServiceImpl(
             EventRepository eventRepository,
             OrganiserRepository organiserRepository,
             CategoryRepository categoryRepository,
+            VenueRepository venueRepository,
+            HallRepository hallRepository,
+            ScheduleRepository eventScheduleRepository,
             ModelMapper modelMapper
     ) {
         this.eventRepository = eventRepository;
         this.organiserRepository = organiserRepository;
         this.categoryRepository = categoryRepository;
+        this.venueRepository = venueRepository;
+        this.hallRepository = hallRepository;
+        this.eventScheduleRepository = eventScheduleRepository;
         this.modelMapper = modelMapper;
     }
 
     @Override
     public EventResDto getEventById(Long eventId) {
-        return modelMapper.map(findEventById(eventId), EventResDto.class);
+        return mapEventToDto(findEventById(eventId));
     }
 
     @Override
@@ -52,11 +60,47 @@ public class EventServiceImpl implements EventService {
         return eventRepository
                 .findAllByOrganiser(findOrganiserById(organiserId))
                 .stream()
-                .map(
-                        event -> modelMapper.map(event, EventResDto.class)
-                )
+                .map(this::mapEventToDto)
                 .toList();
 
+    }
+
+    @Override
+    public List<EventResDto> getAllEvents() {
+        return eventRepository
+                .findAll()
+                .stream()
+                .map(this::mapEventToDto)
+                .toList();
+    }
+
+    @Override
+    public List<EventResDto> getAllEventsByCity(String city) {
+        return venueRepository
+                .findAllByCity(city)
+                .stream()
+                .map(hallRepository::findAllByVenue)
+                .flatMap(List::stream)
+                .map(eventScheduleRepository::findAllByHall)
+                .flatMap(List::stream)
+                .map(EventSchedule::getEvent)
+                .distinct()
+                .map(this::mapEventToDto)
+                .toList();
+    }
+
+    @Override
+    public List<EventResDto> getAllEventsByCategory(String categoryName) {
+        Category category = categoryRepository
+                .findByName(categoryName.toUpperCase())
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Category")
+                );
+        return eventRepository
+                .findAllByCategory(category)
+                .stream()
+                .map(this::mapEventToDto)
+                .toList();
     }
 
     @Override
@@ -97,6 +141,20 @@ public class EventServiceImpl implements EventService {
     public ApiResponse cancelEvent(Long eventId) {
         findEventById(eventId).setStatus(EventStatus.CANCELLED);
         return new ApiResponse("Successfully CANCELLED the event. Id : " + eventId);
+    }
+
+    private EventResDto mapEventToDto(Event event) {
+        EventResDto eventResDto = modelMapper.map(event, EventResDto.class);
+        eventResDto.setCategoryId(event.getCategory().getId());
+        eventResDto.setOrganiserId(event.getOrganiser().getId());
+        eventResDto.setEventSchedule(event.getEventSchedules().stream().map(
+                schedule -> {
+                    EventScheduleResDto eventScheduleResDto = modelMapper.map(schedule, EventScheduleResDto.class);
+                    eventScheduleResDto.setHallId(schedule.getHall().getId());
+                    return eventScheduleResDto;
+                }
+        ).toList());
+        return eventResDto;
     }
 
     private Category findCategoryById(Long categoryId) {

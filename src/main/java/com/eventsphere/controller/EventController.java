@@ -3,6 +3,7 @@ package com.eventsphere.controller;
 import com.eventsphere.dto.Request.EventReqDto;
 import com.eventsphere.dto.Response.ApiResponse;
 import com.eventsphere.dto.Response.EventResDto;
+import com.eventsphere.entity.Category;
 import com.eventsphere.service.EventService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,21 @@ public class EventController {
     @GetMapping("/organiser/{organiserId}")
     ResponseEntity<List<EventResDto>> getEventsByOrganiser(@PathVariable Long organiserId) {
         return ResponseEntity.status(HttpStatus.OK).body(eventService.getAllEventByOrganiser(organiserId));
+    }
+
+    @GetMapping
+    ResponseEntity<List<EventResDto>> getAllEvents() {
+        return ResponseEntity.status(HttpStatus.OK).body(eventService.getAllEvents());
+    }
+
+    @GetMapping("/city/{city}")
+    ResponseEntity<List<EventResDto>> getEventsByCity(@PathVariable String city) {
+        return ResponseEntity.status(HttpStatus.OK).body(eventService.getAllEventsByCity(city));
+    }
+
+    @GetMapping("/category")
+    ResponseEntity<List<EventResDto>> getEventsByCategory(@RequestParam String category) {
+        return ResponseEntity.status(HttpStatus.OK).body(eventService.getAllEventsByCategory(category));
     }
 
     @PostMapping

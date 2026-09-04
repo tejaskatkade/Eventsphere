@@ -1,5 +1,6 @@
 package com.eventsphere.dto.Response;
 
+import com.eventsphere.entity.Venue;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,4 +15,6 @@ public class HallResDto {
     private String name;
 
     private Integer capacity;
+
+    private Venue venue;
 }
