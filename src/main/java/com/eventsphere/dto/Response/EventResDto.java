@@ -18,6 +18,8 @@ public class EventResDto {
 
     private Long categoryId;
 
+    private String categoryName;
+
     private String title;
 
     private String description;

@@ -7,19 +7,24 @@ import com.eventsphere.entity.Event;
 import com.eventsphere.entity.EventSchedule;
 import com.eventsphere.entity.Hall;
 import com.eventsphere.entity.ScheduleStatus;
+import com.eventsphere.exception.ApiException;
+import com.eventsphere.exception.ConflictException;
 import com.eventsphere.exception.ResourceNotFoundException;
 import com.eventsphere.repository.EventRepository;
 import com.eventsphere.repository.HallRepository;
 import com.eventsphere.repository.ScheduleRepository;
 import com.eventsphere.service.ScheduleService;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @Transactional
+@Slf4j
 public class ScheduleServiceImpl implements ScheduleService {
 
     private final ScheduleRepository scheduleRepository;
@@ -44,57 +49,99 @@ public class ScheduleServiceImpl implements ScheduleService {
 
     @Override
     public ApiResponse createSchedule(EventScheduleReqDto scheduleReqDto) {
+        log.info("Creating schedule for Event ID: {}, Hall ID: {}", scheduleReqDto.getEventId(), scheduleReqDto.getHallId());
+        validateScheduleTimes(scheduleReqDto.getStartTime(), scheduleReqDto.getEndTime());
+
+        Event event = findEventById(scheduleReqDto.getEventId());
+        Hall hall = findHallById(scheduleReqDto.getHallId());
+
+        // Validate overlapping schedule for the same hall
+        if (scheduleRepository.existsOverlappingSchedule(hall, scheduleReqDto.getStartTime(), scheduleReqDto.getEndTime(), null)) {
+            log.warn("Schedule conflict detected for Hall '{}' between {} and {}", hall.getName(), scheduleReqDto.getStartTime(), scheduleReqDto.getEndTime());
+            throw new ConflictException("Hall '" + hall.getName() + "' already has an active event scheduled during the specified time slot.");
+        }
+
         EventSchedule eventSchedule = modelMapper.map(scheduleReqDto, EventSchedule.class);
-        eventSchedule.setEvent(findEventById(scheduleReqDto.getEventId()));
-        eventSchedule.setHall(findHallById(scheduleReqDto.getHallId()));
+        eventSchedule.setEvent(event);
+        eventSchedule.setHall(hall);
+        if (eventSchedule.getStatus() == null) {
+            eventSchedule.setStatus(ScheduleStatus.AVAILABLE);
+        }
 
         scheduleRepository.save(eventSchedule);
+        log.info("Schedule created successfully with ID: {}", eventSchedule.getId());
         return new ApiResponse("Create schedule successfully. Id : " + eventSchedule.getId());
     }
 
     @Override
     public EventScheduleResDto getEventSchedule(Long scheduleId) {
-        return modelMapper.map(findScheduleById(scheduleId), EventScheduleResDto.class);
-
+        log.debug("Fetching schedule ID: {}", scheduleId);
+        EventSchedule schedule = findScheduleById(scheduleId);
+        EventScheduleResDto dto = modelMapper.map(schedule, EventScheduleResDto.class);
+        dto.setHallId(schedule.getHall().getId());
+        return dto;
     }
 
     @Override
     public List<EventScheduleResDto> getSchedulesOfEvent(Long eventId) {
+        log.debug("Fetching schedules for Event ID: {}", eventId);
         return scheduleRepository
                 .findAllByEvent(findEventById(eventId))
                 .stream()
-                .map(
-                        schedule -> modelMapper
-                                .map(
-                                        schedule,
-                                        EventScheduleResDto.class
-                                )
-                )
+                .map(schedule -> {
+                    EventScheduleResDto dto = modelMapper.map(schedule, EventScheduleResDto.class);
+                    dto.setHallId(schedule.getHall().getId());
+                    return dto;
+                })
                 .toList();
     }
 
     @Override
     public ApiResponse updateSchedule(Long scheduleId, EventScheduleReqDto scheduleReqDto) {
+        log.info("Updating schedule ID: {}", scheduleId);
+        validateScheduleTimes(scheduleReqDto.getStartTime(), scheduleReqDto.getEndTime());
+
         EventSchedule eventSchedule = findScheduleById(scheduleId);
+        Hall hall = findHallById(scheduleReqDto.getHallId());
+
+        // Validate overlapping schedule for the same hall excluding this schedule
+        if (scheduleRepository.existsOverlappingSchedule(hall, scheduleReqDto.getStartTime(), scheduleReqDto.getEndTime(), scheduleId)) {
+            log.warn("Schedule conflict detected on update for Hall '{}' between {} and {}", hall.getName(), scheduleReqDto.getStartTime(), scheduleReqDto.getEndTime());
+            throw new ConflictException("Hall '" + hall.getName() + "' already has an active event scheduled during the specified time slot.");
+        }
+
         eventSchedule.setEvent(findEventById(scheduleReqDto.getEventId()));
-        eventSchedule.setHall(findHallById(scheduleReqDto.getHallId()));
+        eventSchedule.setHall(hall);
         eventSchedule.setStartTime(scheduleReqDto.getStartTime());
         eventSchedule.setEndTime(scheduleReqDto.getEndTime());
         eventSchedule.setStatus(scheduleReqDto.getStatus());
         eventSchedule.setTicketPrice(scheduleReqDto.getTicketPrice());
 
         scheduleRepository.save(eventSchedule);
+        log.info("Schedule ID: {} updated successfully", scheduleId);
         return new ApiResponse("Event Schedule updated successfully.");
     }
 
     @Override
     public ApiResponse updateScheduleStatus(Long scheduleId, ScheduleStatus status) {
+        log.info("Updating schedule ID: {} status to {}", scheduleId, status);
         EventSchedule eventSchedule = findScheduleById(scheduleId);
         eventSchedule.setStatus(status);
 
         scheduleRepository.save(eventSchedule);
+        return new ApiResponse("EventSchedule status updated to " + status.name());
+    }
 
-        return new ApiResponse("EventSchedule status updated to "+ status.name());
+    private void validateScheduleTimes(LocalDateTime startTime, LocalDateTime endTime) {
+        if (startTime == null || endTime == null) {
+            throw new ApiException("Schedule start time and end time are required.");
+        }
+        if (!endTime.isAfter(startTime)) {
+            throw new ApiException("Schedule end time must be after the start time.");
+        }
+        if (startTime.isBefore(LocalDateTime.now())) {
+            throw new ApiException("Cannot schedule an event in the past.");
+        }
     }
 
     private EventSchedule findScheduleById(Long scheduleId) {

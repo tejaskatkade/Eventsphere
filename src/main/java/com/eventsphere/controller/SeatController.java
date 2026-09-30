@@ -34,4 +34,19 @@ public class SeatController {
     ResponseEntity<ApiResponse> createSeat(@RequestBody SeatReqDto seatReqDto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(seatService.createSeat(seatReqDto));
     }
+
+    @PatchMapping("/{seatId}/toggle-status")
+    public ResponseEntity<ApiResponse> toggleSeatStatus(@PathVariable Long seatId) {
+        return ResponseEntity.status(HttpStatus.OK).body(seatService.toggleSeatStatus(seatId));
+    }
+
+    @PutMapping("/{seatId}")
+    public ResponseEntity<ApiResponse> updateSeat(@PathVariable Long seatId, @RequestBody SeatReqDto seatReqDto) {
+        return ResponseEntity.status(HttpStatus.OK).body(seatService.updateSeat(seatId, seatReqDto));
+    }
+
+    @DeleteMapping("/{seatId}")
+    public ResponseEntity<ApiResponse> deleteSeat(@PathVariable Long seatId) {
+        return ResponseEntity.status(HttpStatus.OK).body(seatService.deleteSeat(seatId));
+    }
 }

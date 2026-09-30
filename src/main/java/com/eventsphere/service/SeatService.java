@@ -14,4 +14,9 @@ public interface SeatService {
 
     ApiResponse createSeat(SeatReqDto seatReqDto);
 
+    ApiResponse toggleSeatStatus(Long seatId);
+
+    ApiResponse updateSeat(Long seatId, SeatReqDto seatReqDto);
+
+    ApiResponse deleteSeat(Long seatId);
 }

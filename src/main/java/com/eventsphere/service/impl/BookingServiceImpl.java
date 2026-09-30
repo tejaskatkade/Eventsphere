@@ -5,19 +5,23 @@ import com.eventsphere.dto.Response.ApiResponse;
 import com.eventsphere.dto.Response.BookingResDto;
 import com.eventsphere.entity.*;
 import com.eventsphere.exception.ApiException;
+import com.eventsphere.exception.ConflictException;
 import com.eventsphere.exception.ResourceNotFoundException;
 import com.eventsphere.repository.*;
 import com.eventsphere.service.BookingService;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 @Service
 @Transactional
+@Slf4j
 public class BookingServiceImpl implements BookingService {
 
     private final BookingRepository bookingRepository;
@@ -43,92 +47,114 @@ public class BookingServiceImpl implements BookingService {
 
     /*
      * Books an event for a member based on the provided booking request data.
-     * This method creates a new Booking entity, generates a unique booking reference,
-     * associates the member and event schedule, calculates the total amount based on selected seats,
-     * and saves the booking along with its associated tickets to the database.
-     *
-     * @param bookingReqDto The booking request data transfer object containing member ID, event schedule ID, and seat IDs.
-     * @return An ApiResponse indicating the success of the booking operation along with the generated booking reference.
+     * Uses JPA Pessimistic Write Locking on EventSchedule to ensure thread-safe seat allocation.
      */
     @Override
     public ApiResponse bookEvent(BookingReqDto bookingReqDto) {
+        log.info("Initiating booking for Member ID: {}, Schedule ID: {}, Seats requested: {}",
+                bookingReqDto.getMemberId(), bookingReqDto.getEventScheduleId(), bookingReqDto.getSeatIds());
 
-        Booking booking = modelMapper.map(bookingReqDto, Booking.class);
+        if (bookingReqDto.getSeatIds() == null || bookingReqDto.getSeatIds().isEmpty()) {
+            throw new ApiException("At least one seat must be selected for booking.");
+        }
 
-        booking.setBookingReference(generateBookingReference());
-        booking.setMember(findMemberById(bookingReqDto.getMemberId()));
-        booking.setSchedules(findScheduleById(bookingReqDto.getEventScheduleId()));
-        booking.setBookingStatus(BookingStatus.PENDING);
-        booking.setBookingTime(java.time.LocalDateTime.now());
+        Member member = findMemberById(bookingReqDto.getMemberId());
 
-        List<BookingTicket> tickets = bookingReqDto
+        // 1. Acquire PESSIMISTIC_WRITE lock on EventSchedule to serialize bookings for this schedule
+        EventSchedule schedule = findScheduleByIdWithLock(bookingReqDto.getEventScheduleId());
+        log.debug("Acquired pessimistic lock on Schedule ID: {}", schedule.getId());
+
+        if (schedule.getStatus() != ScheduleStatus.AVAILABLE) {
+            log.warn("Booking rejected: Schedule ID: {} is not AVAILABLE (current: {})", schedule.getId(), schedule.getStatus());
+            throw new ApiException("Schedule is not available for booking. Status: " + schedule.getStatus());
+        }
+        if (schedule.getStartTime() != null && schedule.getStartTime().isBefore(LocalDateTime.now())) {
+            log.warn("Booking rejected: Schedule ID: {} is in the past ({})", schedule.getId(), schedule.getStartTime());
+            throw new ApiException("Cannot book a past event schedule.");
+        }
+
+        // 2. Fetch and validate selected seats
+        List<Seat> seats = bookingReqDto
                 .getSeatIds()
                 .stream()
                 .map(this::findSeatById)
-                .peek(seat -> {
-                    if (ticketRepository.existsByEventScheduleAndSeat(findScheduleById(bookingReqDto.getEventScheduleId()), seat)) {
-                        throw new ApiException("Seat " + seat.getId() + " is already booked for the given schedule.");
-                    }
-                })
-                .map(seat -> generateBookingTicket(booking, seat, booking.getSchedules()))
                 .toList();
 
-        BigDecimal totalAmount = tickets.stream()
-                .map(ticket -> {
-                    booking.getBookingTickets().add(ticket);
-                    return ticket;
-                })
-                .map(BookingTicket::getTicketPrice)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Long hallId = schedule.getHall().getId();
+        for (Seat seat : seats) {
+            if (!seat.getHall().getId().equals(hallId)) {
+                log.warn("Seat ID: {} does not belong to Hall ID: {}", seat.getId(), hallId);
+                throw new ApiException("Seat " + seat.getId() + " does not belong to the hall for this schedule.");
+            }
+            if (Boolean.FALSE.equals(seat.getIsActive())) {
+                log.warn("Seat ID: {} is currently inactive", seat.getId());
+                throw new ApiException("Seat " + seat.getId() + " is currently inactive.");
+            }
+            if (ticketRepository.existsByEventScheduleAndSeat(schedule, seat)) {
+                log.warn("Seat conflict: Seat ID: {} ({}{}) is already booked for Schedule ID: {}",
+                        seat.getId(), seat.getRowName(), seat.getSeatNumber(), schedule.getId());
+                throw new ConflictException("Seat " + seat.getRowName() + seat.getSeatNumber() + " is already booked for this schedule.");
+            }
+        }
 
+        // 3. Build Booking and Tickets
+        Booking booking = new Booking();
+        booking.setBookingReference(generateBookingReference());
+        booking.setMember(member);
+        booking.setSchedules(schedule);
+        booking.setBookingStatus(BookingStatus.CONFIRMED);
+        booking.setBookingTime(LocalDateTime.now());
+
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        for (Seat seat : seats) {
+            BookingTicket ticket = generateBookingTicket(booking, seat, schedule);
+            booking.getBookingTickets().add(ticket);
+            totalAmount = totalAmount.add(ticket.getTicketPrice());
+        }
         booking.setTotalAmount(totalAmount);
+
+        // Cascades automatically to booking tickets
         bookingRepository.save(booking);
-        tickets.forEach(ticketRepository::save);
+        log.info("Booking created successfully. Reference: {}, Total Amount: ₹{}, Tickets: {}",
+                booking.getBookingReference(), booking.getTotalAmount(), booking.getBookingTickets().size());
+
         return new ApiResponse("Booking created successfully. Reference: " + booking.getBookingReference());
     }
 
     @Override
     public BookingResDto getBookingById(Long bookingId) {
-        BookingResDto bookingResDto = modelMapper.map(
-                bookingRepository.findById(bookingId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Booking" + bookingId)),
-                BookingResDto.class
-        );
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+
+        BookingResDto bookingResDto = modelMapper.map(booking, BookingResDto.class);
         bookingResDto.getBookingTicketIds().addAll(
-                bookingRepository.findById(bookingId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Booking" + bookingId))
-                        .getBookingTickets()
+                booking.getBookingTickets()
                         .stream()
                         .map(BookingTicket::getId)
                         .toList()
         );
-        bookingResDto.setMemberId(bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking" + bookingId))
-                .getMember().getId());
-        bookingResDto.setEventScheduleId(bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking" + bookingId))
-                .getSchedules().getId());
+        bookingResDto.setMemberId(booking.getMember().getId());
+        bookingResDto.setEventScheduleId(booking.getSchedules().getId());
         return bookingResDto;
     }
 
     @Override
     public List<BookingResDto> getBookingsByMember(Long memberId) {
-        return bookingRepository.findAllByMember(findMemberById(memberId))
+        Member member = findMemberById(memberId);
+        return bookingRepository.findAllByMemberWithDetails(member)
                 .stream()
-                .map(
-                        booking -> {
-                            BookingResDto bookingResDto = modelMapper.map(booking, BookingResDto.class);
-                            bookingResDto.getBookingTicketIds().addAll(
-                                    booking.getBookingTickets()
-                                            .stream()
-                                            .map(BookingTicket::getId)
-                                            .toList()
-                            );
-                            bookingResDto.setMemberId(booking.getMember().getId());
-                            bookingResDto.setEventScheduleId(booking.getSchedules().getId());
-                            return bookingResDto;
-                        }
-                )
+                .map(booking -> {
+                    BookingResDto bookingResDto = modelMapper.map(booking, BookingResDto.class);
+                    bookingResDto.getBookingTicketIds().addAll(
+                            booking.getBookingTickets()
+                                    .stream()
+                                    .map(BookingTicket::getId)
+                                    .toList()
+                    );
+                    bookingResDto.setMemberId(booking.getMember().getId());
+                    bookingResDto.setEventScheduleId(booking.getSchedules().getId());
+                    return bookingResDto;
+                })
                 .toList();
     }
 
@@ -139,23 +165,22 @@ public class BookingServiceImpl implements BookingService {
      * @return A unique booking reference string.
      */
     private String generateBookingReference() {
-        // Implementation for generating a unique booking reference
-        return "BR-" + UUID.randomUUID();
+        return "BR-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 
     private Member findMemberById(Long memberId) {
         return memberRepository.findById(memberId)
-                .orElseThrow(() -> new RuntimeException("Member not found with ID: " + memberId));
+                .orElseThrow(() -> new ResourceNotFoundException("Member", memberId));
     }
 
-    private EventSchedule findScheduleById(Long scheduleId) {
-        return scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new RuntimeException("Schedule not found with ID: " + scheduleId));
+    private EventSchedule findScheduleByIdWithLock(Long scheduleId) {
+        return scheduleRepository.findByIdWithPessimisticLock(scheduleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Schedule", scheduleId));
     }
 
     private Seat findSeatById(Long seatId) {
         return seatRepository.findById(seatId)
-                .orElseThrow(() -> new RuntimeException("Seat not found with ID: " + seatId));
+                .orElseThrow(() -> new ResourceNotFoundException("Seat", seatId));
     }
 
     /*

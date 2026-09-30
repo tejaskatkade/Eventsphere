@@ -9,4 +9,6 @@ public interface TicketRepository extends JpaRepository<BookingTicket, Long> {
 
     Boolean existsByEventScheduleAndSeat(EventSchedule eventSchedule, Seat seat);
 
+    Boolean existsBySeat(Seat seat);
+
 }
