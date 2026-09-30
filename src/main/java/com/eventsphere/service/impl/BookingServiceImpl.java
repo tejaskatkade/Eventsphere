@@ -122,40 +122,80 @@ public class BookingServiceImpl implements BookingService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BookingResDto getBookingById(Long bookingId) {
-        Booking booking = bookingRepository.findById(bookingId)
+        log.debug("Fetching booking details for ID: {}", bookingId);
+        Booking booking = bookingRepository.findByIdWithDetails(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
 
-        BookingResDto bookingResDto = modelMapper.map(booking, BookingResDto.class);
-        bookingResDto.getBookingTicketIds().addAll(
-                booking.getBookingTickets()
-                        .stream()
-                        .map(BookingTicket::getId)
-                        .toList()
-        );
-        bookingResDto.setMemberId(booking.getMember().getId());
-        bookingResDto.setEventScheduleId(booking.getSchedules().getId());
-        return bookingResDto;
+        return mapToBookingResDto(booking);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<BookingResDto> getBookingsByMember(Long memberId) {
+        log.debug("Fetching bookings for Member ID: {}", memberId);
         Member member = findMemberById(memberId);
         return bookingRepository.findAllByMemberWithDetails(member)
                 .stream()
-                .map(booking -> {
-                    BookingResDto bookingResDto = modelMapper.map(booking, BookingResDto.class);
-                    bookingResDto.getBookingTicketIds().addAll(
-                            booking.getBookingTickets()
-                                    .stream()
-                                    .map(BookingTicket::getId)
-                                    .toList()
-                    );
-                    bookingResDto.setMemberId(booking.getMember().getId());
-                    bookingResDto.setEventScheduleId(booking.getSchedules().getId());
-                    return bookingResDto;
-                })
+                .map(this::mapToBookingResDto)
                 .toList();
+    }
+
+    private BookingResDto mapToBookingResDto(Booking booking) {
+        BookingResDto bookingResDto = modelMapper.map(booking, BookingResDto.class);
+        bookingResDto.setId(booking.getId());
+
+        if (booking.getMember() != null) {
+            bookingResDto.setMemberId(booking.getMember().getId());
+        }
+
+        EventSchedule schedule = booking.getSchedules();
+        if (schedule != null) {
+            bookingResDto.setEventScheduleId(schedule.getId());
+            bookingResDto.setStartTime(schedule.getStartTime());
+            bookingResDto.setEndTime(schedule.getEndTime());
+
+            if (schedule.getEvent() != null) {
+                bookingResDto.setEventTitle(schedule.getEvent().getTitle());
+            }
+            if (schedule.getHall() != null) {
+                bookingResDto.setHallName(schedule.getHall().getName());
+                if (schedule.getHall().getVenue() != null) {
+                    bookingResDto.setVenueName(schedule.getHall().getVenue().getName());
+                }
+            }
+        }
+
+        if (booking.getBookingTickets() != null) {
+            java.util.Set<Long> ticketIds = new java.util.HashSet<>();
+            List<String> seatNames = new java.util.ArrayList<>();
+            List<com.eventsphere.dto.Response.BookingTicketResDto> ticketDtos = new java.util.ArrayList<>();
+
+            for (BookingTicket ticket : booking.getBookingTickets()) {
+                if (ticket.getId() != null) {
+                    ticketIds.add(ticket.getId());
+                }
+                Seat seat = ticket.getSeat();
+                String seatLabel = seat != null ? (seat.getRowName() + seat.getSeatNumber()) : "N/A";
+                seatNames.add(seatLabel);
+
+                ticketDtos.add(new com.eventsphere.dto.Response.BookingTicketResDto(
+                        ticket.getId(),
+                        seat != null ? seat.getId() : null,
+                        seat != null ? seat.getRowName() : null,
+                        seat != null ? seat.getSeatNumber() : null,
+                        seat != null ? seat.getSeatType() : null,
+                        ticket.getTicketPrice()
+                ));
+            }
+
+            bookingResDto.setBookingTicketIds(ticketIds);
+            bookingResDto.setSeatNumbers(seatNames);
+            bookingResDto.setTickets(ticketDtos);
+        }
+
+        return bookingResDto;
     }
 
     /*

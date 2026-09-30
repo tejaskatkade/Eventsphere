@@ -42,4 +42,9 @@ public class ScheduleController {
     public ResponseEntity<?> updateScheduleStatus(@PathVariable Long scheduleId, @RequestParam ScheduleStatus status) {
         return ResponseEntity.ok(scheduleService.updateScheduleStatus(scheduleId, status));
     }
+
+    @GetMapping("/{scheduleId}/booked-seats")
+    public ResponseEntity<java.util.List<Long>> getBookedSeatIds(@PathVariable Long scheduleId) {
+        return ResponseEntity.ok(scheduleService.getBookedSeatIds(scheduleId));
+    }
 }

@@ -18,4 +18,6 @@ public interface ScheduleService {
     ApiResponse updateSchedule(Long scheduleId, EventScheduleReqDto scheduleReqDto);
 
     ApiResponse updateScheduleStatus(Long scheduleId, ScheduleStatus status);
+
+    List<Long> getBookedSeatIds(Long scheduleId);
 }

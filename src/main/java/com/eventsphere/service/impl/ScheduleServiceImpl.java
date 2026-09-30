@@ -13,6 +13,7 @@ import com.eventsphere.exception.ResourceNotFoundException;
 import com.eventsphere.repository.EventRepository;
 import com.eventsphere.repository.HallRepository;
 import com.eventsphere.repository.ScheduleRepository;
+import com.eventsphere.repository.TicketRepository;
 import com.eventsphere.service.ScheduleService;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -33,17 +34,21 @@ public class ScheduleServiceImpl implements ScheduleService {
 
     private final HallRepository hallRepository;
 
+    private final TicketRepository ticketRepository;
+
     private final ModelMapper modelMapper;
 
     public ScheduleServiceImpl(
             ScheduleRepository scheduleRepository,
             EventRepository eventRepository,
             HallRepository hallRepository,
+            TicketRepository ticketRepository,
             ModelMapper modelMapper
     ) {
         this.scheduleRepository = scheduleRepository;
         this.eventRepository = eventRepository;
         this.hallRepository = hallRepository;
+        this.ticketRepository = ticketRepository;
         this.modelMapper = modelMapper;
     }
 
@@ -77,9 +82,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     public EventScheduleResDto getEventSchedule(Long scheduleId) {
         log.debug("Fetching schedule ID: {}", scheduleId);
         EventSchedule schedule = findScheduleById(scheduleId);
-        EventScheduleResDto dto = modelMapper.map(schedule, EventScheduleResDto.class);
-        dto.setHallId(schedule.getHall().getId());
-        return dto;
+        return mapScheduleToDto(schedule);
     }
 
     @Override
@@ -88,12 +91,24 @@ public class ScheduleServiceImpl implements ScheduleService {
         return scheduleRepository
                 .findAllByEvent(findEventById(eventId))
                 .stream()
-                .map(schedule -> {
-                    EventScheduleResDto dto = modelMapper.map(schedule, EventScheduleResDto.class);
-                    dto.setHallId(schedule.getHall().getId());
-                    return dto;
-                })
+                .map(this::mapScheduleToDto)
                 .toList();
+    }
+
+    private EventScheduleResDto mapScheduleToDto(EventSchedule schedule) {
+        EventScheduleResDto dto = modelMapper.map(schedule, EventScheduleResDto.class);
+        dto.setId(schedule.getId());
+        if (schedule.getEvent() != null) {
+            dto.setEventId(schedule.getEvent().getId());
+        }
+        if (schedule.getHall() != null) {
+            dto.setHallId(schedule.getHall().getId());
+            dto.setHallName(schedule.getHall().getName());
+            if (schedule.getHall().getVenue() != null) {
+                dto.setVenueName(schedule.getHall().getVenue().getName());
+            }
+        }
+        return dto;
     }
 
     @Override
@@ -130,6 +145,13 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         scheduleRepository.save(eventSchedule);
         return new ApiResponse("EventSchedule status updated to " + status.name());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> getBookedSeatIds(Long scheduleId) {
+        log.debug("Fetching booked seat IDs for Schedule ID: {}", scheduleId);
+        return ticketRepository.findBookedSeatIdsByScheduleId(scheduleId);
     }
 
     private void validateScheduleTimes(LocalDateTime startTime, LocalDateTime endTime) {

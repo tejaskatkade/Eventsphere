@@ -12,6 +12,8 @@ import java.util.List;
 @NoArgsConstructor
 public class EventResDto {
 
+    private Long id;
+
     private Long organiserId;
 
     private List<EventScheduleResDto> eventSchedule;

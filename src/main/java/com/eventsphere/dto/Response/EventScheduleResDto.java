@@ -14,7 +14,15 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class EventScheduleResDto {
 
+    private Long id;
+
+    private Long eventId;
+
     private Long hallId;
+
+    private String hallName;
+
+    private String venueName;
 
     private LocalDateTime startTime;
 

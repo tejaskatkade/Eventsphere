@@ -143,6 +143,7 @@ public class EventServiceImpl implements EventService {
 
     private EventResDto mapEventToDto(Event event) {
         EventResDto eventResDto = modelMapper.map(event, EventResDto.class);
+        eventResDto.setId(event.getId());
         if (event.getCategory() != null) {
             eventResDto.setCategoryId(event.getCategory().getId());
             eventResDto.setCategoryName(event.getCategory().getName());
@@ -150,15 +151,23 @@ public class EventServiceImpl implements EventService {
         if (event.getOrganiser() != null) {
             eventResDto.setOrganiserId(event.getOrganiser().getId());
         }
-        eventResDto.setEventSchedule(event.getEventSchedules().stream().map(
-                schedule -> {
-                    EventScheduleResDto eventScheduleResDto = modelMapper.map(schedule, EventScheduleResDto.class);
-                    if (schedule.getHall() != null) {
-                        eventScheduleResDto.setHallId(schedule.getHall().getId());
+        if (event.getEventSchedules() != null) {
+            eventResDto.setEventSchedule(event.getEventSchedules().stream().map(
+                    schedule -> {
+                        EventScheduleResDto eventScheduleResDto = modelMapper.map(schedule, EventScheduleResDto.class);
+                        eventScheduleResDto.setId(schedule.getId());
+                        eventScheduleResDto.setEventId(event.getId());
+                        if (schedule.getHall() != null) {
+                            eventScheduleResDto.setHallId(schedule.getHall().getId());
+                            eventScheduleResDto.setHallName(schedule.getHall().getName());
+                            if (schedule.getHall().getVenue() != null) {
+                                eventScheduleResDto.setVenueName(schedule.getHall().getVenue().getName());
+                            }
+                        }
+                        return eventScheduleResDto;
                     }
-                    return eventScheduleResDto;
-                }
-        ).toList());
+            ).toList());
+        }
         return eventResDto;
     }
 

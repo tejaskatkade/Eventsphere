@@ -41,8 +41,10 @@ public class SeatServiceImpl implements SeatService {
     @Override
     public SeatResDto getSeatById(Long seatId) {
         log.debug("Fetching seat details for ID: {}", seatId);
-        return modelMapper
-                .map(findSeatById(seatId), SeatResDto.class);
+        Seat seat = findSeatById(seatId);
+        SeatResDto dto = modelMapper.map(seat, SeatResDto.class);
+        dto.setId(seat.getId());
+        return dto;
     }
 
     @Override
@@ -50,7 +52,11 @@ public class SeatServiceImpl implements SeatService {
         log.debug("Fetching seats for Hall ID: {}", hallId);
         return seatRepository.findAllByHall(getHallById(hallId))
                 .stream()
-                .map(seat -> modelMapper.map(seat, SeatResDto.class))
+                .map(seat -> {
+                    SeatResDto dto = modelMapper.map(seat, SeatResDto.class);
+                    dto.setId(seat.getId());
+                    return dto;
+                })
                 .toList();
     }
 

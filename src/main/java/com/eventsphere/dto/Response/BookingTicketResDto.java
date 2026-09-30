@@ -1,15 +1,21 @@
 package com.eventsphere.dto.Response;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @NoArgsConstructor
-public class SeatResDto {
+@AllArgsConstructor
+public class BookingTicketResDto {
 
     private Long id;
+
+    private Long seatId;
 
     private String rowName;
 
@@ -17,5 +23,5 @@ public class SeatResDto {
 
     private String seatType;
 
-    private Boolean isActive;
+    private BigDecimal ticketPrice;
 }
