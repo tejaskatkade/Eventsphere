@@ -1,7 +1,7 @@
 package com.eventsphere.dto.Request;
 
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -11,7 +11,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class HallReqDto {
 
-    @NotEmpty
+    @NotNull
     private Long venueId;
 
     private String name;

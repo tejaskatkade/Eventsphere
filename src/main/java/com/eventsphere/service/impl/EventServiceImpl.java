@@ -118,7 +118,7 @@ public class EventServiceImpl implements EventService {
     public ApiResponse updateEvent(Long eventId, EventReqDto eventReqDto) {
         Event event = findEventById(eventId);
         event.setCategory(findCategoryById(eventReqDto.getCategoryId()));
-        event.setOrganiser(findOrganiserById(eventReqDto.getCategoryId()));
+        event.setOrganiser(findOrganiserById(eventReqDto.getOrganiserId()));
         event.setTitle(eventReqDto.getTitle());
         event.setDescription(eventReqDto.getDescription());
         event.setLanguage(eventReqDto.getLanguage());
