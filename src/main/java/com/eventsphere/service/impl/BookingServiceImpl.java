@@ -4,6 +4,7 @@ import com.eventsphere.dto.Request.BookingReqDto;
 import com.eventsphere.dto.Response.ApiResponse;
 import com.eventsphere.dto.Response.BookingResDto;
 import com.eventsphere.entity.*;
+import com.eventsphere.exception.ApiException;
 import com.eventsphere.exception.ResourceNotFoundException;
 import com.eventsphere.repository.*;
 import com.eventsphere.service.BookingService;
@@ -64,6 +65,11 @@ public class BookingServiceImpl implements BookingService {
                 .getSeatIds()
                 .stream()
                 .map(this::findSeatById)
+                .peek(seat -> {
+                    if (ticketRepository.existsByEventScheduleAndSeat(findScheduleById(bookingReqDto.getEventScheduleId()), seat)) {
+                        throw new ApiException("Seat " + seat.getId() + " is already booked for the given schedule.");
+                    }
+                })
                 .map(seat -> generateBookingTicket(booking, seat, booking.getSchedules()))
                 .toList();
 
